@@ -775,7 +775,9 @@ It walks through five steps:
 2. Replaces Linear layers with a `LoRALinear` module (`y = Wx + scale·(xA)B`, with B initialized to zero) and prints how many parameters are now trainable (the same 1.3M as mlx-lm).
 3. Builds padded batches and a **mask** so only answer tokens count in the loss. This is what `--mask-prompt` does.
 4. Runs the training loop from Lab 0: `value_and_grad` → `optimizer.update` → `mx.eval`.
-5. Generates on test examples, then does the **merge proof**: it computes `delta = scale·(AB)ᵀ`, shows its **rank is 8** even though it's 576×576, and checks that `x·(W + delta)ᵀ` equals the LoRA output to about 1e-6. This is exactly what `mlx_lm.fuse` does.
+5. Generates on test examples, then does the **merge proof**: it computes `delta = scale·(AB)ᵀ`, shows its **rank is 8** even though it's 576×576, and checks that `x·(W + delta)ᵀ` equals the LoRA output (we got a max difference of 8.6e-6, which is floating-point noise). This is exactly what `mlx_lm.fuse` does.
+
+Measured on an M1 Air: 200 steps in about 2.5 minutes, validation loss 0.99 → 0.022 (the same as `mlx_lm.lora`), and `|delta| / |W| = 0.04`. The task was learned with a ~4% nudge to each matrix. It also turned "Brussels" into "Bruges", the same name-copying weakness as Lab 2.
 
 **Experiments:** `--rank 1`, `--targets q_proj,v_proj`, `--num-layers 4`, `--lr 1e-3`. Change `LoRALinear` itself: what if `B` starts random instead of zero? (Step 0 is no longer the original model.)
 
