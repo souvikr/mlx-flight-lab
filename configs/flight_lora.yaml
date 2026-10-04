@@ -1,0 +1,46 @@
+# configs/flight_lora.yaml - every knob for the flight LoRA run, in one place.
+#
+#   mlx_lm.lora -c configs/flight_lora.yaml
+#
+# Command-line flags override this file, e.g.
+#   mlx_lm.lora -c configs/flight_lora.yaml --iters 100 --adapter-path runs/short
+#
+# Some settings exist ONLY here (not as flags): lora_parameters, lr_schedule.
+
+model: "HuggingFaceTB/SmolLM2-135M-Instruct"  # Hub id (already cached) or a local folder
+train: true
+test: true                      # after training, report test loss + perplexity
+data: "data/flight"             # folder with train.jsonl / valid.jsonl / test.jsonl
+adapter_path: "runs/flight-config"  # adapters.safetensors + adapter_config.json go here
+
+fine_tune_type: lora            # lora | dora | full
+mask_prompt: true               # learn only from the assistant's answer, not the question
+num_layers: 16                  # adapt the last 16 of the 30 blocks (-1 = all of them)
+
+lora_parameters:
+  # Which Linear layers inside each block get an adapter. Leave commented out to
+  # adapt all of them (q, k, v, o, gate, up, down) - the mlx-lm default.
+  # keys: ["self_attn.q_proj", "self_attn.v_proj"]   # the original LoRA paper's choice
+  rank: 8                       # r: width of the low-rank bottleneck
+  scale: 20.0                   # multiplier on the LoRA update (plays the role of alpha / r)
+  dropout: 0.0
+
+optimizer: adam                 # adam | adamw | sgd | adafactor | muon
+learning_rate: 1e-4
+batch_size: 4                   # examples per step
+iters: 300                      # steps; 300 x 4 = 1200 examples = 1.5 passes over 800
+seed: 0
+
+steps_per_report: 25            # print training loss every N steps
+steps_per_eval: 50              # compute validation loss every N steps
+val_batches: -1                 # -1 = the whole validation set
+test_batches: -1
+save_every: 100                 # checkpoint every N steps
+max_seq_length: 512             # our examples are ~100 tokens
+
+# Uncomment to try warm-up + cosine decay instead of a constant learning rate:
+# lr_schedule:
+#   name: cosine_decay
+#   warmup: 30                  # steps of linear warm-up
+#   warmup_init: 1e-7
+#   arguments: [1e-4, 300, 1e-6]  # [peak lr, decay steps, final lr]

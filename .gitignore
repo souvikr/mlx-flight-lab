@@ -1,0 +1,20 @@
+# Downloaded by setup.sh (third-party docs, papers, data) - re-fetch with ./setup.sh
+docs/offline/
+data/wikisql/
+
+# Generated HTML (scripts/render_docs.py)
+/README.html
+/LIBRARY.html
+docs/*.html
+
+# Your experiments: adapters, fused/quantized models, logs, plots
+runs/
+adapters/
+fused_model/
+mlx_model/
+
+# Python / macOS
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
