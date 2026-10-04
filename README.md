@@ -20,6 +20,7 @@ Before training, the model gets **0%** of these right (it politely refuses). Aft
 ## Contents
 
 - [Quick start](#quick-start)
+- [On the plane: step by step](#on-the-plane-step-by-step)
 - [What you will learn](#what-you-will-learn)
 - [What's in this repo](#whats-in-this-repo)
 - **Part A: Setup (online, before you fly)**
@@ -69,6 +70,75 @@ open README.html
 ```
 
 `README.html` is this file rendered for Safari. `LIBRARY.html` links to all the offline docs. Then start at [Lab 0](#lab-0-mlx-in-10-minutes).
+
+---
+
+## On the plane: step by step
+
+Everything below works with Wi-Fi off. You only need Terminal and Safari.
+
+**1. Open Terminal and go to the repo.** Press `Cmd+Space`, type *Terminal*, press Enter. Then:
+
+```bash
+cd ~/mlx-flight-lab          # or wherever you cloned it
+```
+
+**2. Switch on the environment.** Do this in *every* new Terminal window or tab:
+
+```bash
+source activate.sh
+```
+
+It activates the Python environment in `~/.venvs/mlx`, turns on offline mode (`HF_HUB_OFFLINE=1`, so nothing tries to reach the internet), and sets `$MODEL`. If a command later says `command not found: mlx_lm...`, you forgot this step.
+
+**3. Check that everything works offline** (about 10 seconds):
+
+```bash
+./preflight.sh
+```
+
+You want: `All 17 checks passed. You're ready to fly.`
+
+**4. Open the guide and the library in Safari:**
+
+```bash
+open README.html LIBRARY.html
+```
+
+Put Safari on one half of the screen and Terminal on the other: read on the left, type on the right. `README.html` is this guide. `LIBRARY.html` links to the offline MLX docs, the mlx-lm docs, the papers and the `--help` of every command.
+
+**5. Understand the repo first (10 minutes of reading).** In this order:
+
+| read | why | how |
+|---|---|---|
+| [What's in this repo](#whats-in-this-repo) | the map | in the guide |
+| 3 lines of training data | what the model learns from | `head -n 3 data/flight/train.jsonl` |
+| `labs/make_flight_data.py` | how that data was generated | `open -e labs/make_flight_data.py` (TextEdit) |
+| `labs/eval_flight.py` | how a "score" is computed | `open -e labs/eval_flight.py` |
+| `configs/flight_lora.yaml` | every training setting, explained | `open -e configs/flight_lora.yaml` |
+
+To read any file in Terminal: `less <file>` (space = next page, `q` = quit). If you have VS Code, `code .` opens the whole repo.
+
+**6. Do the labs in order.** Each lab in [Part B](#part-b-the-labs-offline-on-the-plane) gives the command, what you should see (real numbers measured on an M1 Air), and what it means. The core path:
+
+```bash
+python labs/00_mlx_basics.py            # Lab 0: MLX basics (10 min)
+python labs/01_peek_inside.py           # Lab 1: inside the model
+python labs/eval_flight.py              # Lab 2: baseline score (0%)
+mlx_lm.lora --model $MODEL --train --data data/flight --mask-prompt --iters 300 \
+  --learning-rate 1e-4 --steps-per-eval 50 --adapter-path runs/flight-lora \
+  2>&1 | tee runs/flight-lora.log       # Lab 2: train (~3 min)
+python labs/eval_flight.py --adapter-path runs/flight-lora     # Lab 2: score again (~69%)
+python labs/lora_from_scratch.py        # Lab 6: the same thing, by hand
+```
+
+Then come back for Lab 3 (experiments), which is where most of the understanding happens.
+
+**7. Find your results.** Everything you create goes into `runs/`: adapters (`runs/<name>/adapters.safetensors`), logs (`runs/<name>.log`), plots (`python labs/plot_losses.py runs/flight-lora.log` then `open runs/flight-lora.png`). Keep notes in `runs/NOTES.md`. `runs/` is not pushed to GitHub, by design.
+
+**8. If something goes wrong:** first run `source activate.sh` again, then `./preflight.sh`. After that, see [Troubleshooting](#c3-troubleshooting). Every command is on one page in `docs/CHEATSHEET.md` (`open docs/CHEATSHEET.html`), and every option is in `docs/offline/cli-help/`.
+
+**9. Look after the battery.** Training is heavy work. Plug in if the seat has power. Low Power Mode makes training slower (all the numbers here were measured with it on). Activity Monitor (`Cmd+Space` → *Activity Monitor*) shows memory use. Training uses about 1.1 GB.
 
 ---
 
@@ -615,6 +685,8 @@ mlx_lm.lora --model $MODEL --train --test --data data/wikisql --iters 300 --step
   --adapter-path runs/sql 2>&1 | tee runs/sql.log
 ```
 
+Measured: validation loss 3.08 → 1.55 in 300 steps (about 3 minutes), `Test loss 1.752, Test ppl 5.765`. The loss stays much higher than in the flight task because the `text` format trains on *every* token, including the table name, the column list and the question, which are unpredictable. Only the SQL is really learnable.
+
 Generate SQL. Because `text` data was trained **without** a chat template, use `--ignore-chat-template` and the same `Q: … A:` layout:
 
 ```bash
@@ -623,6 +695,8 @@ columns: Player, No., Nationality, Position, Years in Toronto, School/Club Team
 Q: What is terrence ross' nationality
 A: "
 ```
+
+Our run answered `SELECT Nationality FROM 1-10015132-16 WHERE Player = 'Terrence Ross'`, which is exactly right, from a 135M model after 3 minutes of training.
 
 **Questions to explore:** Why is `--mask-prompt` not supported for `text` data? (There's no marked prompt/answer boundary.) Convert WikiSQL to the `completions` format (`{"prompt": "table: …\nA: ", "completion": "SELECT …"}`) with a short Python script, then train with `--mask-prompt`. Does test perplexity get better or worse? Careful, because the loss is now measured on different tokens.
 
