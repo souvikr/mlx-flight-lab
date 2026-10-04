@@ -7,8 +7,8 @@ This repo is a self-contained, roughly 4-hour hands-on course built on [MLX](htt
 The main project: you teach the model a skill it doesn't have. It learns to turn messy flight requests into clean JSON:
 
 ```text
-"Hey! 2 biz class seats from Rome to Oslo on the 4th of May please"
-    -> {"from": "Rome", "to": "Oslo", "date": "May 4", "passengers": 2, "cabin": "business"}
+"Heading home to Nairobi from London on December 24. 3 adults, coach is fine."
+    -> {"from": "London", "to": "Nairobi", "date": "December 24", "passengers": 3, "cabin": "economy"}
 ```
 
 Before training, the model gets **0%** of these right (it politely refuses). After about **3 minutes** of LoRA training it gets **about 70%** exactly right on cities it has never seen. The labs then dig into why it isn't 100%.
@@ -49,7 +49,7 @@ Before training, the model gets **0%** of these right (it politely refuses). Aft
 
 ## Quick start
 
-**Before the flight, with internet (5–10 minutes, about 400 MB):**
+**Before the flight, with internet (5–10 minutes; about 750 MB on disk when done):**
 
 ```bash
 git clone https://github.com/souvikr/mlx-flight-lab.git
@@ -128,8 +128,8 @@ The Python environment does **not** live in the repo. It's at `~/.venvs/mlx`, so
 | | Needed | Why |
 |---|---|---|
 | Mac | Apple silicon (M1 or newer) | MLX runs on the Apple GPU through Metal |
-| RAM | 8 GB is plenty | the model needs about 0.3 GB to run and under 2 GB to train |
-| Disk | about 1 GB free | ~270 MB model + ~300 MB Python packages + ~65 MB docs |
+| RAM | 8 GB is plenty | measured: about 0.3 GB to run the model, about 1.1 GB peak while training |
+| Disk | about 1.5 GB free | ~400 MB Python packages + ~260 MB model + ~60 MB docs, plus room for your experiments |
 | Python | 3.10+ (3.12 recommended) | [`uv`](https://docs.astral.sh/uv/) is used if present (`brew install uv`) |
 | Internet | only for setup | after that, everything is local |
 
@@ -242,7 +242,7 @@ What you'll see, section by section:
 
 1. **Arrays.** `mx.array` works like NumPy.
 2. **Lazy evaluation.** `y = x @ x` returns instantly because MLX only records the operation. The work happens at `mx.eval(y)`, or when you print or `.item()` a value. This lets MLX optimize whole graphs.
-3. **Unified memory.** The same array runs a matmul on the CPU and then the GPU, with no copying, because Apple silicon shares one pool of RAM. Compare the GFLOP/s. That gap is why training runs on the GPU.
+3. **Unified memory.** The same array runs a matmul on the CPU and then the GPU, with no copying, because Apple silicon shares one pool of RAM. Compare the GFLOP/s: on an M1 Air the GPU did about 1,100 vs about 560 on the CPU in our run, and the gap grows with bigger matrices. That's why training runs on the GPU.
 4. **Gradients.** `mx.grad(f)` returns a function that computes the derivative. Here, ∂/∂w of Σw² is 2w.
 5. **A complete training loop** that learns `y = 3x + 2` from noisy points: forward → loss → gradients → optimizer update. **LoRA training is exactly this loop**, with a bigger model and a different loss.
 6. **Memory.** `mx.get_peak_memory()`.
@@ -587,7 +587,7 @@ python labs/eval_flight.py --adapter-path runs/$NAME --show 3
 | E4 | **Rank** | copy `configs/flight_lora.yaml`, change `rank:` to 1, 2, 4, 32 | Does rank 1 already work? (The LoRA paper says often yes.) Adapter file size? |
 | E5 | **Where to adapt** | `--num-layers` 1, 4, 16, -1; or `keys: ["self_attn.q_proj", "self_attn.v_proj"]` in the config | Trainable % vs accuracy. Is attention-only enough? |
 | E6 | **Prompt masking** | drop `--mask-prompt` | Loss numbers change meaning: they now include predicting the system prompt and user text. Does accuracy change? |
-| E7 | **DoRA / full fine-tune** | `--fine-tune-type dora`; `--fine-tune-type full --learning-rate 1e-5` | Accuracy, speed, memory (watch `Peak memory` in Activity Monitor), adapter size (full saves the whole model!) |
+| E7 | **DoRA / full fine-tune** | `--fine-tune-type dora`; `--fine-tune-type full --learning-rate 1e-5` | Accuracy, speed, memory (Activity Monitor → Memory tab, the `python` process), file size. For reference: DoRA trains 1.03% of weights (LoRA: 0.97%). Full fine-tuning of the last 16 blocks trains **42%** (56.6M) and saves ~108 MB instead of 5 MB. Add `--num-layers -1` to train everything. |
 | E8 | **Batch size** | `--batch-size` 1, 2, 8, 16 (adjust `--iters` to see the same examples) | tok/s, memory, smoothness of the loss curve |
 | E9 | **Fix the city problem** ⭐ | Edit `TRAIN_CITIES` in `labs/make_flight_data.py` to add 100+ more cities (keep `HELDOUT_CITIES` out!), regenerate to a new `--out` folder, retrain | Does `from`/`to` accuracy on *unseen* cities go up? This is **data-centric AI**: often the data fix beats any hyperparameter. |
 | E10 | **Fix counting** | Add templates to `make_flight_data.py` like "Me + 1", "X adults and Y children" | Does `hard.jsonl` passengers accuracy improve? |
@@ -624,7 +624,7 @@ Q: What is terrence ross' nationality
 A: "
 ```
 
-**Questions to explore:** Why is `--mask-prompt` not allowed for `text` data? (There's no marked prompt/answer boundary.) Convert WikiSQL to the `completions` format (`{"prompt": "table: …\nA: ", "completion": "SELECT …"}`) with a short Python script, then train with `--mask-prompt`. Does test perplexity get better or worse? Careful, because the loss is now measured on different tokens.
+**Questions to explore:** Why is `--mask-prompt` not supported for `text` data? (There's no marked prompt/answer boundary.) Convert WikiSQL to the `completions` format (`{"prompt": "table: …\nA: ", "completion": "SELECT …"}`) with a short Python script, then train with `--mask-prompt`. Does test perplexity get better or worse? Careful, because the loss is now measured on different tokens.
 
 ---
 
@@ -634,9 +634,11 @@ A: "
 
 ```bash
 mlx_lm.convert --model $MODEL -q --mlx-path runs/smollm-4bit
-du -sh runs/smollm-4bit ~/.cache/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M-Instruct
+du -shL runs/smollm-4bit ~/.cache/huggingface/hub/models--HuggingFaceTB--SmolLM2-135M-Instruct/snapshots/*
 mlx_lm.generate --model runs/smollm-4bit --prompt "Give me one tip for a long flight." --max-tokens 60
 ```
+
+(`-L` follows symlinks. The Hugging Face cache stores files as links into a `blobs/` folder, so plain `du` under-counts it.)
 
 4-bit quantization stores each weight in 4 bits plus a scale and bias per group of 64 weights (`--q-group-size`), roughly 4.5 bits per weight instead of 16. Options: `--q-bits 8`, `--q-group-size 32`, `--q-mode mxfp4`. For a 135M model it hardly matters, but it's how a 7B model fits in 8 GB.
 
@@ -650,7 +652,7 @@ mlx_lm.lora --model runs/smollm-4bit --train --data data/flight --mask-prompt --
 python labs/eval_flight.py --model runs/smollm-4bit --adapter-path runs/qlora
 ```
 
-Compare accuracy and speed with your 16-bit LoRA. Remember that an adapter only works with the base model it was trained on.
+Our measurement: validation loss 1.79 → 0.031, and **56% exact match vs 69% for the 16-bit LoRA**. It was also *slower*: ~280 tok/s vs ~420. At 135M parameters, memory isn't the bottleneck, so 4-bit only costs accuracy plus the time to unpack the weights on every step. QLoRA pays off when the 16-bit model wouldn't fit at all (a 7B model on an 8 GB Mac). Remember that an adapter only works with the base model it was trained on.
 
 ### 5.3 Fuse: bake the adapter into the weights
 
