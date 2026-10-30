@@ -159,6 +159,7 @@ Then come back for Lab 3 (experiments), which is where most of the understanding
 ```text
 mlx-flight-lab/
 ├── README.md               <- this guide (README.html = same thing for Safari, built by setup.sh)
+├── LICENSE                 <- MIT
 ├── setup.sh                <- ONLINE: installs everything and downloads the model, data and docs
 ├── activate.sh             <- `source activate.sh` in every new Terminal: env + offline mode
 ├── preflight.sh            <- checks everything works with networking blocked
@@ -886,4 +887,4 @@ Reading tip for the papers: in the LoRA paper, read sections 1, 4 and 7. In QLoR
 - [SmolLM2-135M-Instruct](https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct) by Hugging Face (Apache-2.0).
 - WikiSQL data via [mlx-examples](https://github.com/ml-explore/mlx-examples/tree/main/lora/data) (MIT). Original dataset by Salesforce (BSD-3-Clause).
 - Papers are fetched from arXiv for personal reading and aren't redistributed in this repo.
-- The flight dataset, lab scripts and this guide were written for this repo.
+- **This repo** (the flight dataset, lab scripts, setup scripts and this guide) is released under the [MIT License](LICENSE), © 2026 Souvik Roy. The third-party projects above keep their own licenses. Nothing of theirs is committed here: `setup.sh` downloads it.
